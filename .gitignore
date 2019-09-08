@@ -1,5 +1,9 @@
-src/github.com/*
-src/golang.org/*
-bin/*
-pkg/*
+#github
+/src/github.com
+#golang
+/src/golang.org
+#bin
+/bin
+#pkg
+/pkg
 
