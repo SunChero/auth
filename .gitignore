@@ -1,5 +1,5 @@
-src/github.com/
-src/golang.org/
-bin
-pkg
+src/github.com/*
+src/golang.org/*
+bin/*
+pkg/*
 
