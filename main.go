@@ -4,12 +4,13 @@ import (
 	"crypto/rsa"
 	"database/sql"
 
-	"handler"
 	"log"
 	"net/http"
 	"os"
-	"service"
 	"time"
+
+	"bitbucket.org/sunchero/auth/handler"
+	"bitbucket.org/sunchero/auth/service"
 
 	_ "github.com/lib/pq"
 )
