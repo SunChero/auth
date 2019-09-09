@@ -2,48 +2,51 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log"
-
-	"github.com/dgrijalva/jwt-go"
-	"github.com/markbates/goth"
+	"strings"
+	"time"
 )
 
-type hasuraClaims struct {
-	AccessToken    string      `json:"accesstoken"`
-	CustomUserInfo interface{} `json:"https://hasura.io/jwt/claims"`
-	jwt.StandardClaims
+const (
+	verificationCodeLifespan = time.Minute * 15
+	tokenLifespan            = time.Hour * 24 * 14
+)
+
+//SendVerificationCode send magic link
+func (s *Service) CreateVerificationCode(ctx context.Context, email string) (string, error) {
+	email = strings.TrimSpace(email)
+	if !reEmail.MatchString(email) {
+		return "", ErrInvalidEmail
+	}
+	return s.sqlCreateVerificationCode(ctx, email)
 }
 
-func (s *Service) createJWT(uid string) (string, error) {
-	hasura := make(map[string]interface{})
-	hasura["x-hasura-default-role"] = "user"
-	hasura["x-hasura-allowed-roles"] = []string{"user"}
-	hasura["x-hasura-user-id"] = "1"
-	claims := hasuraClaims{
-		uid,
-		hasura,
-		jwt.StandardClaims{
-			//ExpiresAt: 150000000,
-			Issuer: "test",
-		},
+// AuthURI to be redirected to and complete the login flow.
+// It contains the token in the hash fragment.
+func (s *Service) LoginWithCode(ctx context.Context, verificationCode string) (string, error) {
+	log.Printf(`verification code %v `, verificationCode)
+	verificationCode = strings.TrimSpace(verificationCode)
+	if !reUUID.MatchString(verificationCode) {
+		return "", ErrInvalidVerificationCode
 	}
-	t := jwt.NewWithClaims(jwt.GetSigningMethod("RS256"), claims)
-	tokenString, err := t.SignedString(s.signKey)
-	if err != nil {
-		log.Printf("Token Signing error: %v\n", err)
-		return "", err
-	}
-	return tokenString, nil
+	var uid string
+	var createdAt time.Time
+	err := s.db.QueryRowContext(ctx, `
+		DELETE FROM verification_codes WHERE id = $1
+		RETURNING auth_id, created_at`, verificationCode).Scan(&uid, &createdAt)
+	// if err == sql.ErrNoRows {
+	// 	return "", ErrVerificationCodeNotFound
+	// }
 
-}
-
-//CompleteAuth func
-func (s *Service) CompleteAuth(ctx context.Context, guser *goth.User) (string, error) {
-	uid, err := s.checkUser(ctx, guser)
 	if err != nil {
-		log.Printf(`cannot check user in db : %v`, err)
+		return "", fmt.Errorf("could not delete verification code: %v", err)
 	}
-	log.Printf(`the new user is %v`, uid)
+
+	now := time.Now()
+	exp := createdAt.Add(verificationCodeLifespan)
+	if exp.Equal(now) || exp.Before(now) {
+		return "", ErrExpiredToken
+	}
 	return s.createJWT(uid)
-
 }

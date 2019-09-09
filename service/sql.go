@@ -44,6 +44,17 @@ func (s *Service) checkUser(ctx context.Context, guser *goth.User) (string, erro
 
 }
 
-func (s *Service) createMagicLink(email string) {
+func (s *Service) sqlCreateVerificationCode(ctx context.Context, email string) (string, error) {
+	var code string
+	err := s.db.QueryRowContext(ctx, `INSERT INTO verification_codes (email, auth_id) VALUES ($1,
+		(SELECT auth_id from auth  WHERE email = $1)
+		) RETURNING id`, email).Scan(&code)
+	// if isForeignKeyViolation(err) {
+	// 	return ErrUserNotFound
+	// }
+	if err != nil {
+		return "", fmt.Errorf("could not insert verification code: %v", err)
+	}
 
+	return code, nil
 }
