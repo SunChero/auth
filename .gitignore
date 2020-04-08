@@ -6,4 +6,5 @@
 /bin
 #pkg
 /pkg
+.env
 
